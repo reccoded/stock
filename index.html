@@ -48,6 +48,45 @@
   .watering-saved-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
 }
 
+
+/* 모바일: 현재평단|보유수량 / 총투자액|목표 / 최소순익|손절 */
+@media(max-width:760px){
+  #kr .position-metrics-six,#us .position-metrics-six{
+    display:grid;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:8px;
+    margin:10px 0 12px;
+  }
+  #kr .position-metrics-six>.position-summary,
+  #kr .position-metrics-six>.price-grid,
+  #us .position-metrics-six>.position-summary,
+  #us .position-metrics-six>.price-grid{
+    display:contents;
+  }
+  #kr .position-metrics-six .metric,
+  #kr .position-metrics-six .price-box,
+  #us .position-metrics-six .metric,
+  #us .position-metrics-six .price-box{
+    min-height:72px;
+    margin:0;
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+  }
+  #kr .position-metrics-six .position-summary .metric:nth-child(1),
+  #us .position-metrics-six .position-summary .metric:nth-child(1){grid-column:1;grid-row:1}
+  #kr .position-metrics-six .position-summary .metric:nth-child(2),
+  #us .position-metrics-six .position-summary .metric:nth-child(2){grid-column:2;grid-row:1}
+  #kr .position-metrics-six .position-summary .metric:nth-child(3),
+  #us .position-metrics-six .position-summary .metric:nth-child(3){grid-column:1;grid-row:2}
+  #kr .position-metrics-six .price-grid .price-box:nth-child(1),
+  #us .position-metrics-six .price-grid .price-box:nth-child(1){grid-column:2;grid-row:2}
+  #kr .position-metrics-six .price-grid .price-box:nth-child(2),
+  #us .position-metrics-six .price-grid .price-box:nth-child(2){grid-column:1;grid-row:3}
+  #kr .position-metrics-six .price-grid .price-box:nth-child(3),
+  #us .position-metrics-six .price-grid .price-box:nth-child(3){grid-column:2;grid-row:3}
+}
+
 </style>
 </head>
 <body>
@@ -239,8 +278,10 @@ function renderMarket(market){const el=document.getElementById(market==='KR'?'kr
 }
 function positionCard(p){const s=positionState(p);const preset={name:p.presetName||p.presetSnapshot?.name||'직접설정',target:p.target,stop:p.stop};const target=priceForRate(p.market,s.avg,s.qty,p.target);const breakeven=priceForProfit(p.market,s.avg,s.qty,p.market==='KR'?db.settings.krMinProfit:db.settings.usMinProfit);const stop=priceForRate(p.market,s.avg,s.qty,p.stop);const ex=db.settings.exchangeRate;return `<div class="position">
   <div class="position-title"><div><div class="name">${esc(p.name)} ${p.ticker?`<span class="muted">${esc(p.ticker)}</span>`:''}</div><div class="muted">${esc(p.displayId)} · ${esc(preset.name)} · 매수 ${allBuys(p).length}회 / 매도 ${allSells(p).length}회</div></div><span class="badge">보유중</span></div>
-  <div class="summary position-summary" style="margin-top:10px"><div class="metric"><div class="k">현재 평단</div><div class="v">${fmt(s.avg,p.market)}</div></div><div class="metric"><div class="k">보유수량</div><div class="v">${s.qty}주</div></div><div class="metric"><div class="k">총 투자액</div><div class="v">${fmt(s.avg*s.qty,p.market)}${p.market==='US'?`<div class="tiny">≈ ${fmtKRW(s.avg*s.qty*ex)}</div>`:''}</div></div></div>
+  <div class="position-metrics-six">
+  <div class="summary position-summary"><div class="metric"><div class="k">현재 평단</div><div class="v">${fmt(s.avg,p.market)}</div></div><div class="metric"><div class="k">보유수량</div><div class="v">${s.qty}주</div></div><div class="metric"><div class="k">총 투자액</div><div class="v">${fmt(s.avg*s.qty,p.market)}${p.market==='US'?`<div class="tiny">≈ ${fmtKRW(s.avg*s.qty*ex)}</div>`:''}</div></div></div>
   <div class="price-grid"><div class="price-box target"><div class="k">목표 ${pct(p.target)}</div><div class="v">${fmt(target,p.market)}</div></div><div class="price-box breakeven"><div class="k">최소 순익 ${p.market==='KR'?fmt(db.settings.krMinProfit,'KR'):fmt(db.settings.usMinProfit,'US')}</div><div class="v">${fmt(breakeven,p.market)}</div></div><div class="price-box stop"><div class="k">손절 ${pct(p.stop)}</div><div class="v">${fmt(stop,p.market)}</div></div></div>
+  </div>
   <div class="quick"><div class="field sim-price"><label>전량 매도가</label><input class="input" id="sim-${p.id}" type="number" step="${p.market==='KR'?1:0.01}" placeholder="가격" value="${p.savedSimPrice??''}" oninput="autoSaveSimPrice('${p.id}')"></div><div id="simout-${p.id}" class="note sim-result">가격 입력 → 예상 순이익</div></div>
   <div class="trade-actions"><button class="btn buy" onclick="addBuy('${p.id}')">매수</button><button class="btn sell" onclick="sellPosition('${p.id}')">매도</button><button class="btn" onclick="editPosition('${p.id}')">수정</button><button class="btn" id="detailBtn-${p.id}" onclick="toggleDetail('${p.id}')">내역 ▾</button></div>
   <div class="detail hidden" id="detail-${p.id}">${renderEventHistory(p)}</div>
