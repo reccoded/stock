@@ -267,10 +267,97 @@ function historyCard(p){const s=positionState(p),sells=allSells(p),profit=sells.
 function csvNum(v,digits=0){const x=Number(v);if(!Number.isFinite(x))return '';return x.toFixed(digits)}
 function csvPrice(v,market){return csvNum(v,market==='US'?2:0)}
 function csvRate(v){return csvNum(v,1)}
-function eventCSVRows(){const rows=[];for(const p of db.positions){const firstBuy=allBuys(p)[0];for(const e of p.events){rows.push({거래ID:p.displayId,내부ID:p.id,시장:p.market==='KR'?'국장':'미장',티커:p.ticker||'',종목명:p.name,이벤트유형:e.type==='BUY'?'매수':'매도',이벤트차수:e.seq,날짜:e.date,시간:e.time||'',시간대:e.hourBand||'',가격:csvPrice(e.price,p.market),수량:csvNum(e.qty),거래금액:csvNum(e.price*e.qty),거래전평단:csvPrice(e.beforeAvg,p.market),거래후평단:csvPrice(e.afterAvg,p.market),거래전수량:csvNum(e.beforeQty),거래후수량:csvNum(e.afterQty),프리셋명:p.presetName||p.presetSnapshot?.name||'직접설정',최종목표순이익률:csvRate(p.target),최종손절순이익률:csvRate(p.stop),거래전체메모:p.tradeMemo||'',이벤트메모:e.memo||'',매수메모:e.type==='BUY'?(e.memo||''):'',매도메모:e.type==='SELL'?(e.memo||''):'',이유태그:(e.tags||[]).join('|'),수수료:csvNum(e.fee),이번순이익:csvNum(e.profit),이번순이익률:csvRate(e.profitRate),누적순이익:csvNum(e.cumulativeProfit),보유일수:firstBuy?daysBetween(firstBuy.date,e.date):'',원칙상태:e.rule||'',거래상태:p.closed?'종료':'진행중',매도당시환율:csvNum(e.exchangeRate),순이익원화환산:csvNum(e.profitKRW),"22퍼센트제외참고순이익":csvNum(e.after22),"22퍼센트제외원화환산":csvNum(e.after22KRW)})}}return rows}
+function eventCSVRows(){
+  const rows=[];
+  for(const p of db.positions){
+    const firstBuy=allBuys(p)[0];
+    for(const e of p.events){
+      const isSell=e.type==='SELL';
+      rows.push({
+        거래ID:p.displayId,
+        내부ID:p.id,
+        시장:p.market==='KR'?'국장':'미장',
+        티커:p.ticker||'',
+        종목명:p.name,
+        거래상태:p.closed?'종료':'진행중',
+        이벤트유형:e.type==='BUY'?'매수':'매도',
+        이벤트차수:e.seq,
+        날짜:e.date,
+        시간:e.time||'',
+        시간대:e.hourBand||'',
+        가격:csvPrice(e.price,p.market),
+        수량:csvNum(e.qty),
+        거래금액:csvNum(e.price*e.qty),
+        거래전평단:csvPrice(e.beforeAvg,p.market),
+        거래후평단:csvPrice(e.afterAvg,p.market),
+        거래전수량:csvNum(e.beforeQty),
+        거래후수량:csvNum(e.afterQty),
+        보유일수:firstBuy?daysBetween(firstBuy.date,e.date):'',
+        프리셋명:p.presetName||p.presetSnapshot?.name||'직접설정',
+        목표순이익률:csvRate(p.target),
+        손절순이익률:csvRate(p.stop),
+        태그:(e.tags||[]).join('|'),
+        원칙상태:e.rule||'',
+        수수료:isSell?csvNum(e.fee):'',
+        이번순이익:isSell?csvNum(e.profit):'',
+        이번순이익률:isSell?csvRate(e.profitRate):'',
+        누적순이익:isSell?csvNum(e.cumulativeProfit):'',
+        매도당시환율:isSell&&p.market==='US'?csvNum(e.exchangeRate):'',
+        순이익원화환산:isSell&&p.market==='US'?csvNum(e.profitKRW):'',
+        "22퍼센트제외참고순이익":isSell&&p.market==='US'?csvNum(e.after22):'',
+        "22퍼센트제외원화환산":isSell&&p.market==='US'?csvNum(e.after22KRW):''
+      })
+    }
+  }
+  return rows
+}
 function csvCell(v){return '"'+String(v??'').replace(/"/g,'""')+'"'}
-window.exportCSV=()=>{const data=eventCSVRows();if(!data.length){alert('내보낼 기록이 없습니다.');return}const headers=Object.keys(data[0]);const csv=[headers.map(csvCell).join(','),...data.map(r=>headers.map(h=>csvCell(r[h])).join(','))].join('\r\n');download(`주식매매_전체기록_${today()}.csv`,'\uFEFF'+csv,'text/csv;charset=utf-8')}
-window.exportMD=()=>{if(!db.positions.length){alert('내보낼 기록이 없습니다.');return}let md=`# 주식 매매 기록\n\n생성일: ${today()}\n\n`;const groups={};for(const p of db.positions){const k=(p.closedAt||allBuys(p)[0]?.date||today()).slice(0,7);(groups[k]=groups[k]||[]).push(p)}for(const month of Object.keys(groups).sort().reverse()){md+=`## ${month}\n\n`;for(const p of groups[month]){const buys=allBuys(p),sells=allSells(p),profit=sells.reduce((a,e)=>a+(e.profit||0),0);md+=`### ${p.name}${p.ticker?` (${p.ticker})`:''} · ${p.presetName||p.presetSnapshot?.name||'직접설정'}\n`+`- 거래ID: ${p.displayId}\n- 상태: ${p.closed?'종료':'진행중'}\n- 매수: ${buys.map(e=>`${e.date} ${fmt(e.price,p.market)} × ${e.qty}주`).join(' / ')}\n`+`- 매도: ${sells.length?sells.map(e=>`${e.date} ${fmt(e.price,p.market)} × ${e.qty}주`).join(' / '):'아직 없음'}\n- 누적 실현손익: ${fmt(profit,p.market)}\n`;const memos=p.events.filter(e=>e.memo).map(e=>`  - ${e.type==='BUY'?'매수':'매도'} ${e.seq}차: ${e.memo}`);if(p.tradeMemo)md+=`- 거래 메모: ${p.tradeMemo}\n`;if(memos.length)md+=`- 이벤트 메모\n${memos.join('\n')}\n`;md+='\n'}}download(`주식매매_읽기용_${today()}.md`,md,'text/markdown;charset=utf-8')}
+window.exportCSV=()=>{const data=eventCSVRows();if(!data.length){alert('내보낼 기록이 없습니다.');return}const headers=Object.keys(data[0]);const csv=[headers.map(csvCell).join(','),...data.map(r=>headers.map(h=>csvCell(r[h])).join(','))].join('\r\n');download(`주식매매_분석용_${today()}.csv`,'\uFEFF'+csv,'text/csv;charset=utf-8')}
+window.exportMD=()=>{
+  if(!db.positions.length){alert('내보낼 기록이 없습니다.');return}
+  let md=`# 주식 매매 기록\n\n생성일: ${today()}\n\n`;
+  const groups={};
+  for(const p of db.positions){const k=(p.closedAt||allBuys(p)[0]?.date||today()).slice(0,7);(groups[k]=groups[k]||[]).push(p)}
+  for(const month of Object.keys(groups).sort().reverse()){
+    md+=`## ${month}\n\n`;
+    for(const p of groups[month]){
+      const buys=allBuys(p),sells=allSells(p),profit=sells.reduce((a,e)=>a+(e.profit||0),0);
+      const firstBuy=buys[0];
+      const lastEvent=p.events[p.events.length-1];
+      md+=`### ${p.name}${p.ticker?` (${p.ticker})`:''}\n\n`;
+      md+=`- 거래ID: ${p.displayId}\n`;
+      md+=`- 시장: ${p.market==='KR'?'국장':'미장'}\n`;
+      md+=`- 상태: ${p.closed?'종료':'진행중'}\n`;
+      md+=`- 프리셋: ${p.presetName||p.presetSnapshot?.name||'직접설정'}\n`;
+      md+=`- 목표 / 손절: ${pct(p.target)} / ${pct(p.stop)}\n`;
+      if(firstBuy&&lastEvent)md+=`- 기록 기간: ${firstBuy.date} ~ ${lastEvent.date} · ${daysBetween(firstBuy.date,lastEvent.date)}일\n`;
+      md+=`- 누적 실현손익: ${fmt(profit,p.market)}\n`;
+      if(p.tradeMemo)md+=`- 거래 전체 메모: ${p.tradeMemo}\n`;
+      md+='\n#### 매매 내역\n\n';
+      for(const e of p.events){
+        const kind=e.type==='BUY'?'매수':'매도';
+        md+=`**${kind} ${e.seq}차 · ${e.date}${e.time?` ${e.time}`:''}**\n\n`;
+        md+=`- 가격: ${fmt(e.price,p.market)}\n`;
+        md+=`- 수량: ${e.qty}주\n`;
+        md+=`- 거래금액: ${fmt(e.price*e.qty,p.market)}\n`;
+        if(e.beforeAvg!==undefined&&e.beforeAvg!=='')md+=`- 거래 전 평단: ${fmt(e.beforeAvg,p.market)}\n`;
+        if(e.afterAvg!==undefined&&e.afterAvg!=='')md+=`- 거래 후 평단: ${fmt(e.afterAvg,p.market)}\n`;
+        if((e.tags||[]).length)md+=`- 태그: ${(e.tags||[]).join(' · ')}\n`;
+        if(e.memo)md+=`- 메모: ${e.memo}\n`;
+        if(e.type==='SELL'){
+          if(e.rule)md+=`- 원칙 상태: ${e.rule}\n`;
+          if(e.profit!==undefined&&e.profit!=='')md+=`- 이번 순이익: ${fmt(e.profit,p.market)} (${pct(e.profitRate||0)})\n`;
+          if(e.cumulativeProfit!==undefined&&e.cumulativeProfit!=='')md+=`- 누적 순이익: ${fmt(e.cumulativeProfit,p.market)}\n`;
+          if(p.market==='US'&&e.exchangeRate)md+=`- 매도 당시 환율: ${Math.round(Number(e.exchangeRate))}원\n`;
+          if(p.market==='US'&&e.profitKRW!==undefined&&e.profitKRW!=='')md+=`- 순이익 원화 환산: ${fmtKRW(e.profitKRW)}\n`;
+        }
+        md+='\n';
+      }
+      md+='---\n\n';
+    }
+  }
+  download(`주식매매_읽기용_${today()}.md`,md,'text/markdown;charset=utf-8')
+}
 window.exportJSON=()=>download(`주식매매_전체백업_${today()}.json`,JSON.stringify(db,null,2),'application/json');
 window.importJSON=()=>{const input=document.getElementById('jsonFile');input.onchange=()=>{const f=input.files[0];if(!f)return;const rd=new FileReader();rd.onload=()=>{try{const x=JSON.parse(rd.result);if(!x.version||!Array.isArray(x.positions))throw 0;if(confirm('현재 데이터를 백업 파일로 교체할까요?')){x.settings=Object.assign({krMinProfit:1000,usMinProfit:1,exchangeRate:1400,aiExtraStocks:'',aiExtraEnabled:false,aiSelectedPromptId:'',aiSelectedHoldingIds:[]},x.settings||{});x.aiPrompts=x.aiPrompts||[];if(!x.aiPromptDefaultsSeeded){x.aiPrompts=[...x.aiPrompts,...makeDefaultAIPrompts()];x.aiPromptDefaultsSeeded=true}db=x;save();renderAll()}}catch(e){alert('올바른 백업 파일이 아닙니다.')}};rd.readAsText(f)};input.click()}
 function download(name,content,type){const b=new Blob([content],{type}),u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),1000)}
